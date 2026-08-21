@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./cop.css">
+    <script src="./cop.js" defer></script>
+    <title>Document</title>
+</head>
+<body>
+    <h1>Cálculo COP</h1>
+
+    <button id="conectar" onclick="conectionBLE()">Conectar plataforma (BLE)</button>
+
+    <div id="graphics">
+
+        <div class="grafico">
+            <p>Gráfico de Tempo</p>
+            <canvas id="time" width="450" height="450"></canvas>
+        </div>
+
+        <div class="grafico">
+            <p>Gráfico de Espaço</p>
+            <canvas id="space" width="450" height="450"></canvas>
+        </div>
+
+    </div>
+</body>
