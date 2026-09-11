@@ -334,7 +334,7 @@ function statusBLE(){
     console.log(
         bleDevice?.gatt?.connected
         ?"🟢 BLE conectado: "+bleDevice.name
-        :"🔴 BLE desconectado."
+        :"🔴 BLE desconectado"
     );
 }
 
