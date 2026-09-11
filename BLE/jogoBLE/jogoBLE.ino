@@ -20,11 +20,9 @@ HX711 scale1, scale2, scale3, scale4;
 
 long lastRaw1 = 0, lastRaw2 = 0, lastRaw3 = 0, lastRaw4 = 0;
 
-// --- Configuração dos Motores ---
+// --- Configuração dos Motores (Liga/Desliga) ---
 const int MOTOR_PINS[] = {15, 12, 14, 13};
 const int NUM_MOTORS = 4;
-const int PWM_FREQ = 5000;
-const int PWM_RESOLUTION = 8;
 
 #define SERVICE_UUID        "12345678-1234-1234-1234-1234567890ab"
 #define PESO_UUID           "11111111-1111-1111-1111-111111111111"
@@ -60,7 +58,7 @@ class ServerCallbacks : public BLEServerCallbacks {
 // --- Callback para receber comandos dos motores via BLE ---
 class CmdCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
-        
+
         String comando = pCharacteristic->getValue();
 
         comando.trim();
@@ -73,35 +71,31 @@ class CmdCallbacks : public BLECharacteristicCallbacks {
 
         if (comando.startsWith("V,")) {
 
-            int intensities[4];
+            int estados[4];
 
             int parsed = sscanf(
                 comando.c_str(),
                 "V,%d,%d,%d,%d",
-                &intensities[0],
-                &intensities[1],
-                &intensities[2],
-                &intensities[3]
+                &estados[0],
+                &estados[1],
+                &estados[2],
+                &estados[3]
             );
             Serial.printf("Motores: %d %d %d %d\n",
-              intensities[0],
-              intensities[1],
-              intensities[2],
-              intensities[3]);
+              estados[0],
+              estados[1],
+              estados[2],
+              estados[3]);
 
             if (parsed == 4) {
 
                 for (int i = 0; i < NUM_MOTORS; i++) {
 
-                    intensities[i] = constrain(intensities[i], 0, 100);
+                    estados[i] = constrain(estados[i], 0, 1); // só aceita 0 (desliga) ou 1 (liga)
 
-                    int pwm = map(intensities[i], 0, 100, 0, 255);
+                    digitalWrite(MOTOR_PINS[i], estados[i] == 1 ? HIGH : LOW);
 
-                    ledcWrite(MOTOR_PINS[i], pwm);
-
-                    Serial.printf("Motor %d PWM = %d\n", i, pwm);
-
-                    ledcWrite(MOTOR_PINS[i], pwm);
+                    Serial.printf("Motor %d = %s\n", i, estados[i] == 1 ? "LIGADO" : "DESLIGADO");
                 }
 
                 lastMotorCommand = millis();
@@ -132,10 +126,10 @@ void setup() {
     if (tare3) scale3.tare(20); else Serial.println("ERRO: scale3 nao respondeu para tara!");
     if (tare4) scale4.tare(20); else Serial.println("ERRO: scale4 nao respondeu para tara!");
 
-    // Configuração dos canais PWM para os motores (API nova do ESP32 Core 3.x)
+    // Configuração dos pinos dos motores como saída digital (liga/desliga)
     for (int i = 0; i < NUM_MOTORS; i++) {
-        ledcAttach(MOTOR_PINS[i], PWM_FREQ, PWM_RESOLUTION);
-        ledcWrite(MOTOR_PINS[i], 0); // Desligados no início
+        pinMode(MOTOR_PINS[i], OUTPUT);
+        digitalWrite(MOTOR_PINS[i], LOW); // Desligados no início
     }
 
     // Configura o Access por BLE
@@ -155,6 +149,13 @@ void setup() {
     pesoCharacteristic->addDescriptor(new BLE2902());
 
     pesoCharacteristic->setValue("P,0,0,0,0");
+
+    cmdCharacteristic = service->createCharacteristic(
+        CMD_UUID,
+        BLECharacteristic::PROPERTY_WRITE
+    );
+
+    cmdCharacteristic->setCallbacks(new CmdCallbacks());
 
     service->start();
 
@@ -196,7 +197,7 @@ void loop() {
     lastRaw2,
     lastRaw3,
     lastRaw4);
-    
+
 
     // 2. ENVIO DOS DADOS PROCESSADOS VIA BLE
     if (currentTime - lastSendTime >= SEND_INTERVAL) {
@@ -233,7 +234,7 @@ void loop() {
     // Timeout de segurança: se o PC parar de responder, desliga os motores
     if (currentTime - lastMotorCommand > MOTOR_TIMEOUT) {
         for (int i = 0; i < NUM_MOTORS; i++) {
-            ledcWrite(MOTOR_PINS[i], 0);
+            digitalWrite(MOTOR_PINS[i], LOW);
         }
     }
 }
