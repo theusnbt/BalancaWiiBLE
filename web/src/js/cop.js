@@ -3,6 +3,7 @@ const PESO_UUID="11111111-1111-1111-1111-111111111111";
 const CMD_UUID="22222222-2222-2222-2222-222222222222";
 
 let canvasTime,ctxTime,canvasSpace,ctxSpace;
+let statsTimeEl,statsSpaceEl;
 let bleDevice=null,bleCharacteristic=null,cmdCharacteristic=null;
 let tentativasReconexao=0;
 const MAX_TENTATIVAS_RECONEXAO=5,TEMPO_RECONEXAO=1500;
@@ -13,20 +14,19 @@ const pontos=[],MAX_PONTOS_SPACE=500;
 let motoresLigados=false;
 
 let lastDrawTime=0;
-const DRAW_INTERVAL=50; // ms entre cada redesenho no canvas
+const DRAW_INTERVAL=50;
 
-// --- Configuração física da plataforma (AJUSTE PARA O TAMANHO REAL) ---
-const ESCALA_SPACE=170; // pixels por unidade de copX/copY (-1 a 1) no gráfico de espaço
-const PLATAFORMA_METADE_X_CM=21.5; // metade da largura real da plataforma, em cm
-const PLATAFORMA_METADE_Y_CM=21.5; // metade do comprimento real da plataforma, em cm
-const INTERVALO_TICK_CM=5; // de quantos em quantos cm desenhar uma marcação
+const ESCALA_SPACE=170;
+const PLATAFORMA_METADE_X_CM=21.5;
+const PLATAFORMA_METADE_Y_CM=21.5;
 
-// --- Configuração do gráfico de tempo ---
-const ESCALA_TEMPO=120; // pixels por unidade de copX/copY (-1 a 1) no gráfico de tempo
-const JANELA_TEMPO_S=10; // quantos segundos ficam visíveis no gráfico
-const INTERVALO_TICK_S=1; // de quantos em quantos segundos desenhar uma marcação
+const ESCALA_TEMPO=120;
+const JANELA_TEMPO_S=10;
 
-const tempoAmostras=[],copXTempo=[],copYTempo=[]; // arrays paralelos
+const COR_EIXO="#38bdf8";
+
+const tempoAmostras=[],copXTempo=[],copYTempo=[];
+let tempoInicio=null;
 
 document.addEventListener("DOMContentLoaded",()=>{
     canvasTime=document.getElementById("time");
@@ -34,6 +34,12 @@ document.addEventListener("DOMContentLoaded",()=>{
     if(!canvasTime||!canvasSpace)return console.error("Canvas não encontrado.");
     ctxTime=canvasTime.getContext("2d");
     ctxSpace=canvasSpace.getContext("2d");
+
+    canvasTime.insertAdjacentHTML("afterend",'<div id="statsTime" style="text-align:center;margin-top:8px;font-family:sans-serif;font-size:13px;color:#7dd3fc;">Tempo: 0.0s | Distância: 0.0cm</div>');
+    canvasSpace.insertAdjacentHTML("afterend",'<div id="statsSpace" style="text-align:center;margin-top:8px;font-family:sans-serif;font-size:13px;color:#7dd3fc;">X: 0.0cm | Y: 0.0cm</div>');
+    statsTimeEl=document.getElementById("statsTime");
+    statsSpaceEl=document.getElementById("statsSpace");
+
     desenharEixosTime();
     desenharEixosSpace();
 });
@@ -166,19 +172,13 @@ function calcularCOP(){
     return Number.isFinite(copX)&&Number.isFinite(copY);
 }
 
-// ================= GRÁFICO DE ESPAÇO (cm) =================
-
 function desenharEixosSpace(){
     if(!ctxSpace)return;
     ctxSpace.clearRect(0,0,canvasSpace.width,canvasSpace.height);
     const cx=canvasSpace.width/2,cy=canvasSpace.height/2;
 
-    const pxPorCmX=ESCALA_SPACE/PLATAFORMA_METADE_X_CM;
-    const pxPorCmY=ESCALA_SPACE/PLATAFORMA_METADE_Y_CM;
-
-    // Eixos principais (destacados)
-    ctxSpace.strokeStyle="#000000";
-    ctxSpace.lineWidth=2.5;
+    ctxSpace.strokeStyle=COR_EIXO;
+    ctxSpace.lineWidth=2;
     ctxSpace.beginPath();
     ctxSpace.moveTo(0,cy);
     ctxSpace.lineTo(canvasSpace.width,cy);
@@ -188,52 +188,27 @@ function desenharEixosSpace(){
     ctxSpace.lineTo(cx,canvasSpace.height);
     ctxSpace.stroke();
 
-    // Marcações (ticks) e rótulos em cm
-    ctxSpace.strokeStyle="#999999";
-    ctxSpace.lineWidth=1;
-    ctxSpace.fillStyle="#333333";
-    ctxSpace.font="10px sans-serif";
-    ctxSpace.textAlign="center";
-    ctxSpace.textBaseline="top";
-
-    // Eixo X: positivo para a direita
-    for(let cm=-PLATAFORMA_METADE_X_CM;cm<=PLATAFORMA_METADE_X_CM;cm+=INTERVALO_TICK_CM){
-        if(Math.abs(cm)<0.001)continue;
-        const x=cx+cm*pxPorCmX;
-        ctxSpace.beginPath();
-        ctxSpace.moveTo(x,cy-4);
-        ctxSpace.lineTo(x,cy+4);
-        ctxSpace.stroke();
-        ctxSpace.fillText(cm.toFixed(0),x,cy+6);
-    }
-
-    // Eixo Y: positivo para cima, negativo para baixo
-    ctxSpace.textAlign="left";
+    ctxSpace.fillStyle=COR_EIXO;
+    ctxSpace.font="bold 12px sans-serif";
     ctxSpace.textBaseline="middle";
-    for(let cm=-PLATAFORMA_METADE_Y_CM;cm<=PLATAFORMA_METADE_Y_CM;cm+=INTERVALO_TICK_CM){
-        if(Math.abs(cm)<0.001)continue;
-        const y=cy-cm*pxPorCmY;
-        ctxSpace.beginPath();
-        ctxSpace.moveTo(cx-4,y);
-        ctxSpace.lineTo(cx+4,y);
-        ctxSpace.stroke();
-        ctxSpace.fillText(cm.toFixed(0),cx+6,y);
-    }
 
-    // Rótulos dos eixos
-    ctxSpace.fillStyle="#000000";
-    ctxSpace.font="12px sans-serif";
     ctxSpace.textAlign="right";
-    ctxSpace.textBaseline="bottom";
-    ctxSpace.fillText("X (cm)",canvasSpace.width-4,cy-6);
+    ctxSpace.fillText("X aumenta ▶",canvasSpace.width-6,cy-10);
     ctxSpace.textAlign="left";
-    ctxSpace.fillText("Y (cm)",cx+6,12);
+    ctxSpace.fillText("◀ X diminui",6,cy-10);
+
+    ctxSpace.textAlign="left";
+    ctxSpace.textBaseline="top";
+    ctxSpace.fillText("Y aumenta ▲",cx+8,4);
+    ctxSpace.textBaseline="bottom";
+    ctxSpace.fillText("▼ Y diminui",cx+8,canvasSpace.height-4);
 }
 
 function atualizarSpace(){
     pontos.push({x:copX,y:copY});
     if(pontos.length>MAX_PONTOS_SPACE)pontos.shift();
     desenharSpace();
+    atualizarStatsSpace();
 }
 
 function desenharSpace(){
@@ -255,77 +230,43 @@ function desenharSpace(){
     ctxSpace.fill();
 }
 
-// ================= GRÁFICO DE TEMPO (segundos / cm) =================
+function atualizarStatsSpace(){
+    if(!statsSpaceEl)return;
+    const xCm=copX*PLATAFORMA_METADE_X_CM;
+    const yCm=copY*PLATAFORMA_METADE_Y_CM;
+    statsSpaceEl.textContent=`X: ${xCm.toFixed(1)}cm | Y: ${yCm.toFixed(1)}cm`;
+}
 
 function desenharEixosTime(){
     if(!ctxTime)return;
     ctxTime.clearRect(0,0,canvasTime.width,canvasTime.height);
-    const centro=canvasTime.height/2;
-    const pxPorSegundo=canvasTime.width/JANELA_TEMPO_S;
-    const pxPorCmX=ESCALA_TEMPO/PLATAFORMA_METADE_X_CM;
 
-    // Eixo horizontal (centro vertical, referência 0 cm)
-    ctxTime.strokeStyle="#000000";
-    ctxTime.lineWidth=2.5;
+    const xLinha=canvasTime.width-1;
+    ctxTime.strokeStyle=COR_EIXO;
+    ctxTime.lineWidth=2;
     ctxTime.beginPath();
-    ctxTime.moveTo(0,centro);
-    ctxTime.lineTo(canvasTime.width,centro);
+    ctxTime.moveTo(xLinha,0);
+    ctxTime.lineTo(xLinha,canvasTime.height);
     ctxTime.stroke();
 
-    // Eixo vertical (borda direita = "agora")
-    ctxTime.beginPath();
-    ctxTime.moveTo(canvasTime.width-1,0);
-    ctxTime.lineTo(canvasTime.width-1,canvasTime.height);
-    ctxTime.stroke();
-
-    // Marcações de tempo (eixo X, em segundos, "agora" na direita)
-    ctxTime.strokeStyle="#999999";
-    ctxTime.lineWidth=1;
-    ctxTime.fillStyle="#333333";
-    ctxTime.font="10px sans-serif";
-    ctxTime.textAlign="center";
-    ctxTime.textBaseline="top";
-    for(let s=0;s<=JANELA_TEMPO_S;s+=INTERVALO_TICK_S){
-        const x=canvasTime.width-s*pxPorSegundo;
-        ctxTime.beginPath();
-        ctxTime.moveTo(x,centro-4);
-        ctxTime.lineTo(x,centro+4);
-        ctxTime.stroke();
-        ctxTime.fillText("-"+s+"s",x,centro+6);
-    }
-
-    // Marcações verticais (cm), assumindo mesma metade de plataforma do eixo X
-    ctxTime.textAlign="left";
-    ctxTime.textBaseline="middle";
-    for(let cm=-PLATAFORMA_METADE_X_CM;cm<=PLATAFORMA_METADE_X_CM;cm+=INTERVALO_TICK_CM){
-        if(Math.abs(cm)<0.001)continue;
-        const y=centro-cm*pxPorCmX;
-        if(y<0||y>canvasTime.height)continue;
-        ctxTime.beginPath();
-        ctxTime.moveTo(0,y);
-        ctxTime.lineTo(canvasTime.width,y);
-        ctxTime.stroke();
-        ctxTime.fillText(cm.toFixed(0),2,y);
-    }
-
-    // Rótulos dos eixos
-    ctxTime.fillStyle="#000000";
-    ctxTime.font="12px sans-serif";
+    ctxTime.fillStyle=COR_EIXO;
+    ctxTime.font="bold 12px sans-serif";
     ctxTime.textAlign="right";
+
+    ctxTime.textBaseline="top";
+    ctxTime.fillText(`▲ +${PLATAFORMA_METADE_X_CM}cm aumenta`,xLinha-6,4);
     ctxTime.textBaseline="bottom";
-    ctxTime.fillText("Tempo (s)",canvasTime.width-4,centro-6);
-    ctxTime.textAlign="left";
-    ctxTime.fillText("cm",4,12);
+    ctxTime.fillText(`▼ -${PLATAFORMA_METADE_X_CM}cm diminui`,xLinha-6,canvasTime.height-4);
 }
 
 function atualizarTime(){
     const agora=performance.now();
+    if(tempoInicio===null)tempoInicio=agora;
 
     tempoAmostras.push(agora);
     copXTempo.push(copX);
     copYTempo.push(copY);
 
-    // Remove amostras fora da janela de tempo visível
     const limiteAntigo=agora-JANELA_TEMPO_S*1000;
     while(tempoAmostras.length&&tempoAmostras[0]<limiteAntigo){
         tempoAmostras.shift();
@@ -334,6 +275,7 @@ function atualizarTime(){
     }
 
     desenharTime();
+    atualizarStatsTime();
 }
 
 function desenharTime(){
@@ -344,7 +286,6 @@ function desenharTime(){
     const centro=canvasTime.height/2;
     const pxPorSegundo=canvasTime.width/JANELA_TEMPO_S;
 
-    // copX/copY (razão -1 a 1) plotados usando a mesma escala do eixo cm (ESCALA_TEMPO)
     ctxTime.strokeStyle="red";
     ctxTime.lineWidth=2;
     ctxTime.beginPath();
@@ -365,7 +306,12 @@ function desenharTime(){
     ctxTime.stroke();
 }
 
-// ================= UTILITÁRIOS =================
+function atualizarStatsTime(){
+    if(!statsTimeEl)return;
+    const decorrido=tempoInicio!==null?(performance.now()-tempoInicio)/1000:0;
+    const distCm=Math.hypot(copX*PLATAFORMA_METADE_X_CM,copY*PLATAFORMA_METADE_Y_CM);
+    statsTimeEl.textContent=`Tempo: ${decorrido.toFixed(1)}s | Distância: ${distCm.toFixed(1)}cm`;
+}
 
 function limparGraficos(){
     pontos.length=0;
@@ -373,8 +319,11 @@ function limparGraficos(){
     copXTempo.length=0;
     copYTempo.length=0;
     copX=copY=0;
+    tempoInicio=null;
     desenharEixosSpace();
     desenharEixosTime();
+    atualizarStatsSpace();
+    atualizarStatsTime();
 }
 
 function desconectarBLE(){
