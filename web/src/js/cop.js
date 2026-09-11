@@ -11,7 +11,6 @@ let bufferBLE="";
 let FE=0,TE=0,FD=0,TD=0,copX=0,copY=0;
 const PESO_MINIMO_TOTAL=1;
 const pontos=[],MAX_PONTOS_SPACE=500;
-let motoresLigados=false;
 
 let lastDrawTime=0;
 const DRAW_INTERVAL=50;
@@ -28,6 +27,9 @@ const COR_EIXO="#38bdf8";
 const tempoAmostras=[],copXTempo=[],copYTempo=[];
 let tempoInicio=null;
 
+const NOMES_MOTORES=["Frente Esquerda","Trás Esquerda","Frente Direita","Trás Direita"];
+const motoresEstado=[0,0,0,0];
+
 document.addEventListener("DOMContentLoaded",()=>{
     canvasTime=document.getElementById("time");
     canvasSpace=document.getElementById("space");
@@ -40,9 +42,43 @@ document.addEventListener("DOMContentLoaded",()=>{
     statsTimeEl=document.getElementById("statsTime");
     statsSpaceEl=document.getElementById("statsSpace");
 
+    criarBotoesMotores();
+
     desenharEixosTime();
     desenharEixosSpace();
 });
+
+function criarBotoesMotores(){
+    const container=document.createElement("div");
+    container.id="motoresContainer";
+    container.style.display="flex";
+    container.style.gap="8px";
+    container.style.justifyContent="center";
+    container.style.flexWrap="wrap";
+    container.style.margin="8px 0";
+
+    NOMES_MOTORES.forEach((nome,indice)=>{
+        const btn=document.createElement("button");
+        btn.id="btnMotor"+indice;
+        btn.textContent="Ligar "+nome;
+        btn.style.padding="8px 14px";
+        btn.style.borderRadius="8px";
+        btn.style.border="none";
+        btn.style.background=COR_EIXO;
+        btn.style.color="#0f172a";
+        btn.style.fontWeight="bold";
+        btn.style.cursor="pointer";
+        btn.addEventListener("click",()=>toggleMotor(indice));
+        container.appendChild(btn);
+    });
+
+    const antigo=document.getElementById("btnMotores");
+    if(antigo){
+        antigo.replaceWith(container);
+    }else{
+        document.body.prepend(container);
+    }
+}
 
 async function conectionBLE() {
     try {
@@ -334,7 +370,7 @@ function statusBLE(){
     console.log(
         bleDevice?.gatt?.connected
         ?"🟢 BLE conectado: "+bleDevice.name
-        :"🔴 BLE desconectado"
+        :"🔴 BLE desconectado."
     );
 }
 
@@ -353,13 +389,12 @@ async function enviarComandoMotores(estados) {
     }
 }
 
-function toggleMotores() {
-    motoresLigados = !motoresLigados;
-    const estado = motoresLigados ? 1 : 0;
-    enviarComandoMotores([estado, estado, estado, estado]);
+function toggleMotor(indice){
+    motoresEstado[indice]=motoresEstado[indice]?0:1;
+    enviarComandoMotores(motoresEstado);
 
-    const botao = document.getElementById("btnMotores");
-    if (botao) {
-        botao.textContent = motoresLigados ? "Desligar Motores" : "Ligar Motores";
+    const btn=document.getElementById("btnMotor"+indice);
+    if(btn){
+        btn.textContent=(motoresEstado[indice]?"Desligar ":"Ligar ")+NOMES_MOTORES[indice];
     }
 }
