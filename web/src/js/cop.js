@@ -1,8 +1,9 @@
 const SERVICE_UUID="12345678-1234-1234-1234-1234567890ab";
 const PESO_UUID="11111111-1111-1111-1111-111111111111";
+const CMD_UUID="22222222-2222-2222-2222-222222222222";
 
 let canvasTime,ctxTime,canvasSpace,ctxSpace;
-let bleDevice=null,bleCharacteristic=null;
+let bleDevice=null,bleCharacteristic=null,cmdCharacteristic=null;
 let tentativasReconexao=0;
 const MAX_TENTATIVAS_RECONEXAO=5,TEMPO_RECONEXAO=1500;
 let bufferBLE="";
@@ -10,6 +11,7 @@ let FE=0,TE=0,FD=0,TD=0,copX=0,copY=0;
 const PESO_MINIMO_TOTAL=1;
 const pontos=[],MAX_PONTOS_SPACE=500;
 const copXTempo=[],copYTempo=[];
+let motoresLigados=false;
 
 document.addEventListener("DOMContentLoaded",()=>{
     canvasTime=document.getElementById("time");
@@ -36,6 +38,8 @@ async function conectionBLE() {
 
         console.log("Dispositivo encontrado:", bleDevice.name);
 
+        bleDevice.addEventListener('gattserverdisconnected', onDisconnectedBLE);
+
         const server = await bleDevice.gatt.connect();
         console.log("GATT conectado!");
 
@@ -45,7 +49,7 @@ async function conectionBLE() {
         bleCharacteristic =
             await service.getCharacteristic(PESO_UUID);
 
-        console.log("Characteristic encontrada!");
+        console.log("Characteristic de peso encontrada!");
 
         await bleCharacteristic.startNotifications();
 
@@ -53,6 +57,13 @@ async function conectionBLE() {
             "characteristicvaluechanged",
             receberPesos
         );
+
+        cmdCharacteristic =
+            await service.getCharacteristic(CMD_UUID);
+
+        console.log("Characteristic de comando encontrada!");
+
+        tentativasReconexao = 0;
 
         console.log("🟢 Conectado!");
 
@@ -64,6 +75,7 @@ async function conectionBLE() {
 function onDisconnectedBLE(){
     console.warn("🔴 BLE desconectado.");
     bleCharacteristic=null;
+    cmdCharacteristic=null;
     if(tentativasReconexao<MAX_TENTATIVAS_RECONEXAO){
         tentativasReconexao++;
         setTimeout(reconectarBLE,TEMPO_RECONEXAO);
@@ -75,10 +87,14 @@ async function reconectarBLE(){
     try{
         const server=await bleDevice.gatt.connect();
         const service=await server.getPrimaryService(SERVICE_UUID);
+
         bleCharacteristic=await service.getCharacteristic(PESO_UUID);
         await bleCharacteristic.startNotifications();
         bleCharacteristic.removeEventListener("characteristicvaluechanged",receberPesos);
         bleCharacteristic.addEventListener("characteristicvaluechanged",receberPesos);
+
+        cmdCharacteristic=await service.getCharacteristic(CMD_UUID);
+
         tentativasReconexao=0;
         console.log("🟢 Reconectado!");
     }catch(erro){
@@ -241,4 +257,31 @@ function statusBLE(){
         ?"🟢 BLE conectado: "+bleDevice.name
         :"🔴 BLE desconectado."
     );
+}
+
+async function enviarComandoMotores(estados) {
+    // estados = array com 4 valores, 0 ou 1, ex: [1,1,1,1]
+    if (!cmdCharacteristic) {
+        console.warn("Característica de comando não disponível. Conecte-se primeiro.");
+        return;
+    }
+    try {
+        const comando = "V," + estados.join(",");
+        const encoder = new TextEncoder();
+        await cmdCharacteristic.writeValue(encoder.encode(comando));
+        console.log("Comando enviado:", comando);
+    } catch (erro) {
+        console.error("Erro ao enviar comando:", erro);
+    }
+}
+
+function toggleMotores() {
+    motoresLigados = !motoresLigados;
+    const estado = motoresLigados ? 1 : 0;
+    enviarComandoMotores([estado, estado, estado, estado]);
+
+    const botao = document.getElementById("btnMotores");
+    if (botao) {
+        botao.textContent = motoresLigados ? "Desligar Motores" : "Ligar Motores";
+    }
 }
