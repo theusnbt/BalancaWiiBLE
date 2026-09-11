@@ -1,36 +1,91 @@
-#graphics{
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    min-height: 100vh;
+    font-family: Arial, Helvetica, sans-serif;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: white;
+}
+
+/* TÍTULO */
+h1 {
+    text-align: center;
+    margin-top: 40px;
+    font-size: 42px;
+    color: #38bdf8;
+    text-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+}
+
+/* BOTÕES */
+#btn {
     display: flex;
     justify-content: center;
-    gap: 60px;
+    gap: 15px;
+    margin-top: 30px;
+}
+
+button {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 10px;
+    background: #38bdf8;
+    color: #0f172a;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+button:hover {
+    background: #0ea5e9;
+    color: white;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(14, 165, 233, 0.4);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+/* GRÁFICOS */
+#graphics {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 40px;
     margin-top: 60px;
 }
 
-.grafico{
+/* CADA GRÁFICO */
+.grafico {
     display: flex;
     flex-direction: column;
     align-items: center;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 20px;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(8px);
 }
 
-.grafico p{
-    font-size: 22px;
+/* TÍTULO DO GRÁFICO */
+.grafico p {
+    font-size: 20px;
     font-weight: bold;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
+    color: #7dd3fc;
 }
 
-canvas{
-    border: 1px solid black;
-}
-
-h1{
-    position: absolute;
-    left: 43%;
-    top: 0;
-}
-
-#conectar{
-    margin-left: 43%;
-    margin-top: 20px;
-}
-#btnMotores{
-    
+/* CANVAS */
+canvas {
+    border: 1px solid #38bdf8;
+    border-radius: 8px;
+    background: #020617;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
 }
