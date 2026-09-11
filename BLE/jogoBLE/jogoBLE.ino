@@ -21,7 +21,7 @@ HX711 scale1, scale2, scale3, scale4;
 long lastRaw1 = 0, lastRaw2 = 0, lastRaw3 = 0, lastRaw4 = 0;
 
 // --- Configuração dos Motores (Liga/Desliga) ---
-const int MOTOR_PINS[] = {15, 12, 14, 13};
+const int MOTOR_PINS[] = {4, 12, 14, 13};
 const int NUM_MOTORS = 4;
 
 #define SERVICE_UUID        "12345678-1234-1234-1234-1234567890ab"
