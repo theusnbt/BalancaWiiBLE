@@ -190,12 +190,12 @@ function desenharAlvo(){
 
     // anéis suaves de referência
     [1,0.66,0.33].forEach((f,i)=>{
-        ctxAlvo.fillStyle=["#f1f7f9","#ecf5f3","#e5f2ee"][i];
+        ctxAlvo.fillStyle=["#b4c0bd","#aab8b3","#9fb0aa"][i];
         ctxAlvo.beginPath();
         ctxAlvo.arc(cx,cy,raio*f,0,Math.PI*2);
         ctxAlvo.fill();
     });
-    ctxAlvo.strokeStyle="#dbe7ec";
+    ctxAlvo.strokeStyle="#93a5ab";
     ctxAlvo.lineWidth=2;
     ctxAlvo.beginPath();
     ctxAlvo.arc(cx,cy,raio,0,Math.PI*2);
@@ -212,7 +212,7 @@ function desenharAlvo(){
     ctxAlvo.setLineDash([]);
 
     // rótulos de direção
-    ctxAlvo.fillStyle="#5f7686";
+    ctxAlvo.fillStyle="#4c6375";
     ctxAlvo.font="600 22px 'Segoe UI', system-ui, Arial, sans-serif";
     ctxAlvo.textAlign="center";
     ctxAlvo.textBaseline="middle";
@@ -240,15 +240,15 @@ function desenharAlvo(){
 
     ctxAlvo.globalAlpha=bolaOpacidade;
     const brilho=ctxAlvo.createRadialGradient(x,y,raioBola*0.6,x,y,raioBola*2.4);
-    brilho.addColorStop(0,"rgba(110,190,175,0.35)");
-    brilho.addColorStop(1,"rgba(110,190,175,0)");
+    brilho.addColorStop(0,"rgba(70,150,132,0.35)");
+    brilho.addColorStop(1,"rgba(70,150,132,0)");
     ctxAlvo.fillStyle=brilho;
     ctxAlvo.beginPath();
     ctxAlvo.arc(x,y,raioBola*2.4,0,Math.PI*2);
     ctxAlvo.fill();
 
-    ctxAlvo.fillStyle="#7cc4b4";
-    ctxAlvo.strokeStyle="#ffffff";
+    ctxAlvo.fillStyle="#5aa996";
+    ctxAlvo.strokeStyle="#f2f6f5";
     ctxAlvo.lineWidth=5;
     ctxAlvo.beginPath();
     ctxAlvo.arc(x,y,raioBola,0,Math.PI*2);
