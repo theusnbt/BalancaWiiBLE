@@ -20,7 +20,7 @@ HX711 scale1, scale2, scale3, scale4;
 
 long lastRaw1 = 0, lastRaw2 = 0, lastRaw3 = 0, lastRaw4 = 0;
 
-// --- Configuração dos Motores (Liga/Desliga) ---
+// --- Configuração dos Motores (PWM: liga/desliga ou intensidade 0-255) ---
 const int MOTOR_PINS[] = {4, 12, 14, 13};
 const int NUM_MOTORS = 4;
 
@@ -93,9 +93,33 @@ class CmdCallbacks : public BLECharacteristicCallbacks {
 
                     estados[i] = constrain(estados[i], 0, 1); // só aceita 0 (desliga) ou 1 (liga)
 
-                    digitalWrite(MOTOR_PINS[i], estados[i] == 1 ? HIGH : LOW);
+                    analogWrite(MOTOR_PINS[i], estados[i] == 1 ? 255 : 0);
 
                     Serial.printf("Motor %d = %s\n", i, estados[i] == 1 ? "LIGADO" : "DESLIGADO");
+                }
+
+                lastMotorCommand = millis();
+            }
+        }
+
+        // "I,a,b,c,d" -> intensidade de cada motor (0 a 255) via PWM, usado pelo modo jogo
+        if (comando.startsWith("I,")) {
+
+            int intensidades[4];
+
+            int parsed = sscanf(
+                comando.c_str(),
+                "I,%d,%d,%d,%d",
+                &intensidades[0],
+                &intensidades[1],
+                &intensidades[2],
+                &intensidades[3]
+            );
+
+            if (parsed == 4) {
+
+                for (int i = 0; i < NUM_MOTORS; i++) {
+                    analogWrite(MOTOR_PINS[i], constrain(intensidades[i], 0, 255));
                 }
 
                 lastMotorCommand = millis();
@@ -126,10 +150,10 @@ void setup() {
     if (tare3) scale3.tare(20); else Serial.println("ERRO: scale3 nao respondeu para tara!");
     if (tare4) scale4.tare(20); else Serial.println("ERRO: scale4 nao respondeu para tara!");
 
-    // Configuração dos pinos dos motores como saída digital (liga/desliga)
+    // Configuração dos pinos dos motores como saída PWM (permite controlar a intensidade da vibração)
     for (int i = 0; i < NUM_MOTORS; i++) {
         pinMode(MOTOR_PINS[i], OUTPUT);
-        digitalWrite(MOTOR_PINS[i], LOW); // Desligados no início
+        analogWrite(MOTOR_PINS[i], 0); // Desligados no início
     }
 
     // Configura o Access por BLE
@@ -174,17 +198,7 @@ void setup() {
 }
 
 void loop() {
-    Serial.println("Rodando...");
-    delay(2000);
     unsigned long currentTime = millis();
-
-    Serial.print(scale1.is_ready());
-    Serial.print(" ");
-    Serial.print(scale2.is_ready());
-    Serial.print(" ");
-    Serial.print(scale3.is_ready());
-    Serial.print(" ");
-    Serial.println(scale4.is_ready());
 
     // 1. LEITURA CONTINUA DOS SENSORES (Evita pular para zero)
     if (scale1.is_ready()) lastRaw1 = scale1.get_value(1);
@@ -192,24 +206,15 @@ void loop() {
     if (scale3.is_ready()) lastRaw3 = scale3.get_value(1);
     if (scale4.is_ready()) lastRaw4 = scale4.get_value(1);
 
-    Serial.printf("%ld | %ld | %ld | %ld\n",
-    lastRaw1,
-    lastRaw2,
-    lastRaw3,
-    lastRaw4);
-
-
     // 2. ENVIO DOS DADOS PROCESSADOS VIA BLE
     if (currentTime - lastSendTime >= SEND_INTERVAL) {
 
-        // p1..p4 precisam existir fora do "if (deviceConnected)" para
-        // poderem ser usadas depois nos Serial.printf de debug
-        float p1 = (-6.0 * 0.00001) * lastRaw1;
-        float p2 = (-6.0 * 0.00001) * lastRaw2;
-        float p3 = (-7.0 * 0.00001) * lastRaw3;
-        float p4 = (-7.0 * 0.00001) * lastRaw4;
-
         if (deviceConnected) {
+
+            float p1 = (-6.0 * 0.00001) * lastRaw1;
+            float p2 = (-6.0 * 0.00001) * lastRaw2;
+            float p3 = (-7.0 * 0.00001) * lastRaw3;
+            float p4 = (-7.0 * 0.00001) * lastRaw4;
 
             // "P," identifica o pacote como Peso; o JS descarta esse
             // primeiro campo antes de interpretar os 4 valores
@@ -224,17 +229,12 @@ void loop() {
         }
 
         lastSendTime = currentTime;
-
-        Serial.printf("Frente Esquerda: %.2f kg\n", p1);
-        Serial.printf("Traseira Esquerda: %.2f kg\n", p2);
-        Serial.printf("Frente Direita: %.2f kg\n", p3);
-        Serial.printf("Traseira Direita: %.2f kg\n", p4);
     }
 
     // Timeout de segurança: se o PC parar de responder, desliga os motores
     if (currentTime - lastMotorCommand > MOTOR_TIMEOUT) {
         for (int i = 0; i < NUM_MOTORS; i++) {
-            digitalWrite(MOTOR_PINS[i], LOW);
+            analogWrite(MOTOR_PINS[i], 0);
         }
     }
 }
