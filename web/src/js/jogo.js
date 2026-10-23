@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     window.addEventListener("pagehide",()=>enviarIntensidades([0,0,0,0],true));
 
     requestAnimationFrame(animar);
+    reconectarAutomaticamente(conectarDispositivo);
 });
 
 // ================= BLE =================
@@ -43,15 +44,24 @@ async function conectarPlataforma(){
             alert("Este navegador não suporta Bluetooth. Use o Google Chrome ou o Microsoft Edge.");
             return;
         }
-        bleDevice=await navigator.bluetooth.requestDevice({
+        const dispositivo=await navigator.bluetooth.requestDevice({
             filters:[{services:[SERVICE_UUID]}]
         });
-        bleDevice.addEventListener("gattserverdisconnected",onDesconectado);
-        await prepararConexao();
-        tentativasReconexao=0;
+        await conectarDispositivo(dispositivo);
     }catch(erro){
         console.error("Erro BLE:",erro);
     }
+    atualizarBotao();
+}
+
+// usada pelo botão e pela reconexão automática (reconexao.js)
+async function conectarDispositivo(dispositivo){
+    if(cmdCharacteristic)return;
+    bleDevice=dispositivo;
+    bleDevice.removeEventListener("gattserverdisconnected",onDesconectado);
+    bleDevice.addEventListener("gattserverdisconnected",onDesconectado);
+    await prepararConexao();
+    tentativasReconexao=0;
     atualizarBotao();
 }
 

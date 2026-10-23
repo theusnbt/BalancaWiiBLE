@@ -63,6 +63,7 @@ BalancaWiiBLE/
     └── src/
         ├── css/                # estilos de cada página
         └── js/                 # lógica de cada página (BLE, cálculo, desenho)
+                                # + reconexao.js, compartilhado pelas três páginas
 ```
 
 ---
@@ -93,6 +94,19 @@ python3 -m http.server 8080 --directory web
 ```
 
 Depois acesse `http://localhost:8080/cop.html` (ou `jogo.html` / `bolinha.html`).
+
+### 3. Conexão automática (opcional)
+
+Por segurança, o navegador sempre exige **um clique em "Conectar" na primeira vez**. Depois disso, as páginas tentam **reconectar sozinhas** à plataforma já autorizada assim que são abertas (`web/src/js/reconexao.js`). Assim não é preciso conectar de novo ao trocar de página.
+
+No Chrome/Edge esse recurso pode precisar ser ativado:
+
+1. Acesse `chrome://flags/#enable-web-bluetooth-new-permissions-backend` (no Edge, `edge://flags/...`).
+2. Mude para **Enabled** e reinicie o navegador.
+
+Sem essa opção, nada muda: o botão "Conectar plataforma" continua funcionando normalmente.
+
+> A autorização vale por endereço. `localhost:5501` (Live Server) e `localhost:8080` (Python) são autorizados separadamente.
 
 ---
 

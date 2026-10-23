@@ -46,6 +46,8 @@ document.addEventListener("DOMContentLoaded",()=>{
 
     desenharEixosTime();
     desenharEixosSpace();
+
+    reconectarAutomaticamente(conectarDispositivo);
 });
 
 function criarBotoesMotores(){
@@ -88,45 +90,58 @@ async function conectionBLE() {
 
         console.log("Abrindo seletor BLE...");
 
-        bleDevice = await navigator.bluetooth.requestDevice({
+        const dispositivo = await navigator.bluetooth.requestDevice({
             acceptAllDevices: true,
             optionalServices: [SERVICE_UUID]
         });
 
-        console.log("Dispositivo encontrado:", bleDevice.name);
-
-        bleDevice.addEventListener('gattserverdisconnected', onDisconnectedBLE);
-
-        const server = await bleDevice.gatt.connect();
-        console.log("GATT conectado!");
-
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        console.log("Serviço encontrado!");
-
-        bleCharacteristic =
-            await service.getCharacteristic(PESO_UUID);
-
-        console.log("Characteristic de peso encontrada!");
-
-        await bleCharacteristic.startNotifications();
-
-        bleCharacteristic.addEventListener(
-            "characteristicvaluechanged",
-            receberPesos
-        );
-
-        cmdCharacteristic =
-            await service.getCharacteristic(CMD_UUID);
-
-        console.log("Characteristic de comando encontrada!");
-
-        tentativasReconexao = 0;
-
-        console.log("🟢 Conectado!");
+        await conectarDispositivo(dispositivo);
 
     } catch (erro) {
         console.error("🔴 Erro BLE:", erro);
     }
+}
+
+// usada pelo botão e pela reconexão automática (reconexao.js)
+async function conectarDispositivo(dispositivo) {
+    if (bleDevice?.gatt?.connected) return;
+
+    bleDevice = dispositivo;
+    console.log("Dispositivo encontrado:", bleDevice.name);
+
+    bleDevice.removeEventListener('gattserverdisconnected', onDisconnectedBLE);
+    bleDevice.addEventListener('gattserverdisconnected', onDisconnectedBLE);
+
+    const server = await bleDevice.gatt.connect();
+    console.log("GATT conectado!");
+
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    console.log("Serviço encontrado!");
+
+    bleCharacteristic =
+        await service.getCharacteristic(PESO_UUID);
+
+    console.log("Characteristic de peso encontrada!");
+
+    await bleCharacteristic.startNotifications();
+
+    bleCharacteristic.removeEventListener(
+        "characteristicvaluechanged",
+        receberPesos
+    );
+    bleCharacteristic.addEventListener(
+        "characteristicvaluechanged",
+        receberPesos
+    );
+
+    cmdCharacteristic =
+        await service.getCharacteristic(CMD_UUID);
+
+    console.log("Characteristic de comando encontrada!");
+
+    tentativasReconexao = 0;
+
+    console.log("🟢 Conectado!");
 }
 
 function onDisconnectedBLE(){
