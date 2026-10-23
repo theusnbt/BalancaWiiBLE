@@ -9,7 +9,7 @@ let tentativasReconexao=0;
 const MAX_TENTATIVAS_RECONEXAO=5,TEMPO_RECONEXAO=1500;
 let bufferBLE="";
 let FE=0,TE=0,FD=0,TD=0,copX=0,copY=0;
-const PESO_MINIMO_TOTAL=1;
+const PESO_MINIMO_TOTAL=10; // kg: abaixo disso não há ninguém na plataforma (evita que o ruído da balança vazia vire movimento)
 const pontos=[],MAX_PONTOS_SPACE=500;
 
 let lastDrawTime=0;
@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     criarBotoesMotores();
 
     desenharEixosTime();
-    desenharEixosSpace();
+    desenharSpace();
 
     reconectarAutomaticamente(conectarDispositivo);
 });
@@ -217,9 +217,10 @@ function processarPacoteBLE(dados){
 
 function calcularCOP(){
     const total=FE+TE+FD+TD;
-    if(!Number.isFinite(total)||Math.abs(total)<PESO_MINIMO_TOTAL)return false;
-    copX=((FD+TD)-(FE+TE))/total;
-    copY=((FE+FD)-(TE+TD))/total;
+    if(!Number.isFinite(total)||total<PESO_MINIMO_TOTAL)return false;
+    // fora de -1..1 só acontece com leitura negativa de alguma célula; limita à borda da plataforma
+    copX=Math.max(-1,Math.min(1,((FD+TD)-(FE+TE))/total));
+    copY=Math.max(-1,Math.min(1,((FE+FD)-(TE+TD))/total));
     return Number.isFinite(copX)&&Number.isFinite(copY);
 }
 
@@ -265,7 +266,8 @@ function atualizarSpace(){
 function desenharSpace(){
     desenharEixosSpace();
     const cx=canvasSpace.width/2,cy=canvasSpace.height/2,escala=ESCALA_SPACE;
-    if(!pontos.length)return;
+    // sem leituras ainda: ponto parado no centro
+    const p=pontos.length?pontos[pontos.length-1]:{x:0,y:0};
     ctxSpace.strokeStyle="blue";
     ctxSpace.lineWidth=2;
     ctxSpace.beginPath();
@@ -274,7 +276,6 @@ function desenharSpace(){
         i?ctxSpace.lineTo(x,y):ctxSpace.moveTo(x,y);
     });
     ctxSpace.stroke();
-    const p=pontos[pontos.length-1];
     ctxSpace.fillStyle="red";
     ctxSpace.beginPath();
     ctxSpace.arc(cx+p.x*escala,cy-p.y*escala,5,0,Math.PI*2);
@@ -371,7 +372,7 @@ function limparGraficos(){
     copYTempo.length=0;
     copX=copY=0;
     tempoInicio=null;
-    desenharEixosSpace();
+    desenharSpace();
     desenharEixosTime();
     atualizarStatsSpace();
     atualizarStatsTime();

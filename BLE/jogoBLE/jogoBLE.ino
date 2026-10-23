@@ -130,25 +130,6 @@ class CmdCallbacks : public BLECharacteristicCallbacks {
 
 void setup() {
     Serial.begin(115200);
-    delay(1000);
-    Serial.println("TESTE");
-    Serial.println("Inicializando Balancas...");
-    scale1.begin(DT1, SCK1);
-    scale2.begin(DT2, SCK2);
-    scale3.begin(DT3, SCK3);
-    scale4.begin(DT4, SCK4);
-
-    // Faz a tara inicial ao ligar (mantenha a balança sem peso neste momento)
-    Serial.println("A efetuar Tara inicial...");
-    bool tare1 = scale1.wait_ready_timeout(1000);
-    bool tare2 = scale2.wait_ready_timeout(1000);
-    bool tare3 = scale3.wait_ready_timeout(1000);
-    bool tare4 = scale4.wait_ready_timeout(1000);
-
-    if (tare1) scale1.tare(20); else Serial.println("ERRO: scale1 nao respondeu para tara!");
-    if (tare2) scale2.tare(20); else Serial.println("ERRO: scale2 nao respondeu para tara!");
-    if (tare3) scale3.tare(20); else Serial.println("ERRO: scale3 nao respondeu para tara!");
-    if (tare4) scale4.tare(20); else Serial.println("ERRO: scale4 nao respondeu para tara!");
 
     // Configuração dos pinos dos motores como saída PWM (permite controlar a intensidade da vibração)
     for (int i = 0; i < NUM_MOTORS; i++) {
@@ -195,6 +176,28 @@ void setup() {
     Serial.println("BLE iniciado!");
     Serial.println("Advertising iniciado!");
     Serial.println("==============================");
+
+    Serial.println("Inicializando Balancas...");
+    scale1.begin(DT1, SCK1);
+    scale2.begin(DT2, SCK2);
+    scale3.begin(DT3, SCK3);
+    scale4.begin(DT4, SCK4);
+
+    // Faz a tara inicial ao ligar (mantenha a balança sem peso neste momento).
+    // Fica depois do BLE para a página já poder conectar enquanto a tara acontece.
+    // 10 amostras por balança (~1s cada a 10 leituras/s).
+    Serial.println("A efetuar Tara inicial...");
+    bool tare1 = scale1.wait_ready_timeout(1000);
+    bool tare2 = scale2.wait_ready_timeout(1000);
+    bool tare3 = scale3.wait_ready_timeout(1000);
+    bool tare4 = scale4.wait_ready_timeout(1000);
+
+    if (tare1) scale1.tare(10); else Serial.println("ERRO: scale1 nao respondeu para tara!");
+    if (tare2) scale2.tare(10); else Serial.println("ERRO: scale2 nao respondeu para tara!");
+    if (tare3) scale3.tare(10); else Serial.println("ERRO: scale3 nao respondeu para tara!");
+    if (tare4) scale4.tare(10); else Serial.println("ERRO: scale4 nao respondeu para tara!");
+
+    Serial.println("Tara concluida, enviando leituras.");
 }
 
 void loop() {

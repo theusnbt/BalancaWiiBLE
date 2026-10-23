@@ -6,20 +6,20 @@ let bleDevice=null,bleCharacteristic=null,cmdCharacteristic=null;
 let tentativasReconexao=0;
 const MAX_TENTATIVAS_RECONEXAO=5,TEMPO_RECONEXAO=1500;
 let bufferBLE="";
-const PESO_MINIMO_TOTAL=1;
+const PESO_MINIMO_TOTAL=10; // kg: abaixo disso não há ninguém na plataforma (evita que o ruído da balança vazia vire movimento)
 
 // --- Vibração conforme a inclinação ---
 const ZONA_CENTRAL=0.08;    // |COP| abaixo disso não vibra
 const ALCANCE_MAX=0.6;      // |COP| a partir do qual a vibração é máxima
 const PWM_MIN=90;           // menor PWM que ainda faz o motor girar
 const PWM_MAX=255;
-const SUAVIZACAO=0.3;       // média móvel exponencial (0..1): menor = tendência mais suave
+const SUAVIZACAO=0.5;       // média móvel exponencial (0..1): menor = mais suave, porém com mais atraso
 const INTERVALO_ENVIO=150;  // ms entre comandos (abaixo do MOTOR_TIMEOUT do ESP32)
 
 let incX=0,incY=0,comPeso=false;
 // posição e opacidade desenhadas: seguem os valores reais aos poucos, para o movimento ficar suave
 let bolaX=0,bolaY=0,bolaOpacidade=0;
-const SUAVIDADE_DESENHO=0.12;
+const SUAVIDADE_DESENHO=0.25;
 let ultimoEnvio=0,enviando=false;
 const intensidades=[0,0,0,0]; // ordem FE, TE, FD, TD (igual aos MOTOR_PINS do ESP32)
 
@@ -137,13 +137,18 @@ function processarPacote(dados){
     const total=FE+TE+FD+TD;
 
     // sem ninguém na plataforma: motores desligados e sem bolinha
-    if(!Number.isFinite(total)||Math.abs(total)<PESO_MINIMO_TOTAL){
+    if(!Number.isFinite(total)||total<PESO_MINIMO_TOTAL){
         intensidades.fill(0);
         enviarIntensidades(intensidades,false);
         comPeso=false;
         return;
     }
-    atualizarInclinacao(((FD+TD)-(FE+TE))/total,((FE+FD)-(TE+TD))/total);
+    // fora de -1..1 só acontece com leitura negativa de alguma célula; limita à borda da plataforma
+    atualizarInclinacao(limitar(((FD+TD)-(FE+TE))/total),limitar(((FE+FD)-(TE+TD))/total));
+}
+
+function limitar(v){
+    return Math.max(-1,Math.min(1,v));
 }
 
 // Envia "I,a,b,c,d" com limite de taxa; evita escritas BLE sobrepostas

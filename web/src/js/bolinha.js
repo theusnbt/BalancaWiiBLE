@@ -6,13 +6,14 @@ let bleDevice=null,bleCharacteristic=null,cmdCharacteristic=null;
 let tentativasReconexao=0;
 const MAX_TENTATIVAS_RECONEXAO=5,TEMPO_RECONEXAO=1500;
 let bufferBLE="";
-const PESO_MINIMO_TOTAL=1;
+const PESO_MINIMO_TOTAL=10; // kg: abaixo disso não há ninguém na plataforma (evita que o ruído da balança vazia vire movimento)
 
 // --- Inclinação vinda da balança ---
-const SUAVIZACAO=0.3;       // média móvel exponencial (0..1): menor = tendência mais suave
+const SUAVIZACAO=0.5;       // média móvel exponencial (0..1): menor = mais suave, porém com mais atraso
 const ZONA_PARADA=0.03;     // |COP| abaixo disso conta como balança reta
 const INCLINACAO_MAX=0.6;   // |COP| considerado inclinação máxima
 const ANGULO_MAX_GRAUS=14;  // quanto o tabuleiro gira na tela na inclinação máxima
+const SUAVIDADE_DESENHO=0.3; // por quadro: quão rápido o tabuleiro acompanha a balança (1 = imediato)
 
 // --- Física da bolinha (unidades do tabuleiro: vai de -1 a 1) ---
 const ACELERACAO=3.2;       // aceleração na inclinação máxima
@@ -154,13 +155,18 @@ function processarPacote(dados){
     const total=FE+TE+FD+TD;
 
     // sem ninguém na plataforma: o tabuleiro volta a ficar reto
-    if(!Number.isFinite(total)||Math.abs(total)<PESO_MINIMO_TOTAL){
+    if(!Number.isFinite(total)||total<PESO_MINIMO_TOTAL){
         alvoX+=(0-alvoX)*SUAVIZACAO;
         alvoY+=(0-alvoY)*SUAVIZACAO;
         return;
     }
-    alvoX+=(((FD+TD)-(FE+TE))/total-alvoX)*SUAVIZACAO;
-    alvoY+=(((FE+FD)-(TE+TD))/total-alvoY)*SUAVIZACAO;
+    // fora de -1..1 só acontece com leitura negativa de alguma célula; limita à borda da plataforma
+    alvoX+=(limitar(((FD+TD)-(FE+TE))/total)-alvoX)*SUAVIZACAO;
+    alvoY+=(limitar(((FE+FD)-(TE+TD))/total)-alvoY)*SUAVIZACAO;
+}
+
+function limitar(v){
+    return Math.max(-1,Math.min(1,v));
 }
 
 async function enviarIntensidades(valores){
@@ -198,8 +204,8 @@ function animar(agora){
     const dt=ultimoQuadro!==null?Math.min(0.05,(agora-ultimoQuadro)/1000):0;
     ultimoQuadro=agora;
 
-    inclX+=(normalizarInclinacao(alvoX)-inclX)*0.15;
-    inclY+=(normalizarInclinacao(alvoY)-inclY)*0.15;
+    inclX+=(normalizarInclinacao(alvoX)-inclX)*SUAVIDADE_DESENHO;
+    inclY+=(normalizarInclinacao(alvoY)-inclY)*SUAVIDADE_DESENHO;
     // frente (COP Y positivo) fica para cima na tela
     canvas.style.transform=`rotateX(${inclY*ANGULO_MAX_GRAUS}deg) rotateY(${inclX*ANGULO_MAX_GRAUS}deg)`;
 
