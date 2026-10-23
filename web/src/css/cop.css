@@ -90,7 +90,8 @@ canvas {
     box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
 }
 
-#linkJogo {
+#linkJogo,
+#linkBolinha {
     display: inline-flex;
     align-items: center;
     padding: 12px 25px;
@@ -101,7 +102,8 @@ canvas {
     text-decoration: none;
 }
 
-#linkJogo:hover {
+#linkJogo:hover,
+#linkBolinha:hover {
     background: #38bdf8;
     color: #0f172a;
 }
