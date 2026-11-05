@@ -78,8 +78,17 @@ async function conectarDispositivo(dispositivo){
     bleDevice=dispositivo;
     bleDevice.removeEventListener("gattserverdisconnected",onDesconectado);
     bleDevice.addEventListener("gattserverdisconnected",onDesconectado);
-    await prepararConexao();
+    try{
+        await prepararConexao();
+    }catch(erro){
+        // não era a plataforma ou a conexão falhou: solta o dispositivo para não ficar preso a ele
+        dispositivo.removeEventListener("gattserverdisconnected",onDesconectado);
+        if(dispositivo.gatt.connected)dispositivo.gatt.disconnect();
+        bleDevice=bleCharacteristic=cmdCharacteristic=null;
+        throw erro;
+    }
     tentativasReconexao=0;
+    pararReconexaoAutomatica();
     atualizarBotao();
 }
 
@@ -104,12 +113,12 @@ function onDesconectado(){
         tentativasReconexao++;
         setTimeout(reconectar,TEMPO_RECONEXAO);
     }else{
-        atualizarBotao();
+        aguardarPlataforma();
     }
 }
 
 async function reconectar(){
-    if(!bleDevice)return;
+    if(!bleDevice||cmdCharacteristic)return;
     try{
         await prepararConexao();
         tentativasReconexao=0;
@@ -118,9 +127,18 @@ async function reconectar(){
         if(tentativasReconexao<MAX_TENTATIVAS_RECONEXAO){
             tentativasReconexao++;
             setTimeout(reconectar,TEMPO_RECONEXAO);
+        }else{
+            aguardarPlataforma();
+            return;
         }
     }
     atualizarBotao();
+}
+
+// esgotadas as tentativas: mostra o botão e espera a plataforma voltar a aparecer
+function aguardarPlataforma(){
+    atualizarBotao();
+    reconectarAutomaticamente(conectarDispositivo);
 }
 
 // o botão só aparece enquanto não houver conexão

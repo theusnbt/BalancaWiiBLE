@@ -5,8 +5,16 @@
 // Sem esse suporte não faz nada e o botão de conectar continua funcionando normalmente.
 //
 // aoEncontrar(dispositivo): função da página que conecta ao dispositivo encontrado.
+// Ela deve lançar erro se o dispositivo não for a plataforma, e chamar
+// pararReconexaoAutomatica() quando a conexão der certo.
+
+const INTERVALO_ENTRE_TENTATIVAS=2000; // ms: evita tentar a cada anúncio (~10 por segundo)
+
+let buscaAtiva=null;
+
 async function reconectarAutomaticamente(aoEncontrar){
     if(!navigator.bluetooth?.getDevices)return false;
+    pararReconexaoAutomatica();
 
     let dispositivos;
     try{
@@ -18,37 +26,59 @@ async function reconectarAutomaticamente(aoEncontrar){
     if(!dispositivos.length)return false;
 
     console.log("Procurando plataforma já autorizada...");
-    const controles=[];
-    let encontrado=false;
+    const busca={observados:[],conectando:false};
+    buscaAtiva=busca;
 
-    const conectar=async dispositivo=>{
-        if(encontrado)return;
-        encontrado=true;
-        controles.forEach(c=>c.abort());
+    // tenta um dispositivo; outros aparelhos autorizados (fones etc.) são descartados
+    const tentar=async(dispositivo,observado)=>{
+        if(busca!==buscaAtiva||busca.conectando)return false;
+        if(observado&&Date.now()-observado.ultimaTentativa<INTERVALO_ENTRE_TENTATIVAS)return false;
+        busca.conectando=true;
+        if(observado)observado.ultimaTentativa=Date.now();
         try{
             await aoEncontrar(dispositivo);
+            return true;
         }catch(erro){
-            console.error("Erro na reconexão automática:",erro);
-            encontrado=false;
+            if(erro?.name==="NotFoundError"){
+                console.log("Ignorando",dispositivo.name,"(não é a plataforma)");
+                if(observado)pararDeObservar(observado);
+            }else{
+                console.warn("Falha ao conectar em",dispositivo.name,erro);
+            }
+            return false;
+        }finally{
+            busca.conectando=false;
         }
     };
 
     for(const dispositivo of dispositivos){
+        if(busca!==buscaAtiva)break;
         // sem watchAdvertisements, tenta conectar direto (funciona se a plataforma estiver ligada)
         if(!dispositivo.watchAdvertisements){
-            await conectar(dispositivo);
-            if(encontrado)break;
+            if(await tentar(dispositivo,null))break;
             continue;
         }
-        // espera a plataforma "aparecer" no ar antes de conectar
-        const controle=new AbortController();
-        controles.push(controle);
-        dispositivo.addEventListener("advertisementreceived",()=>conectar(dispositivo),{once:true});
+        // espera o dispositivo "aparecer" no ar antes de conectar
+        const observado={dispositivo,controle:new AbortController(),ultimaTentativa:0};
+        observado.ouvinte=()=>tentar(dispositivo,observado);
+        dispositivo.addEventListener("advertisementreceived",observado.ouvinte);
+        busca.observados.push(observado);
         try{
-            await dispositivo.watchAdvertisements({signal:controle.signal});
+            await dispositivo.watchAdvertisements({signal:observado.controle.signal});
         }catch(erro){
             console.warn("Não foi possível observar",dispositivo.name,erro);
         }
     }
     return true;
+}
+
+function pararDeObservar(observado){
+    observado.controle.abort();
+    observado.dispositivo.removeEventListener("advertisementreceived",observado.ouvinte);
+}
+
+function pararReconexaoAutomatica(){
+    if(!buscaAtiva)return;
+    buscaAtiva.observados.forEach(pararDeObservar);
+    buscaAtiva=null;
 }

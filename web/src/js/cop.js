@@ -112,34 +112,43 @@ async function conectarDispositivo(dispositivo) {
     bleDevice.removeEventListener('gattserverdisconnected', onDisconnectedBLE);
     bleDevice.addEventListener('gattserverdisconnected', onDisconnectedBLE);
 
-    const server = await bleDevice.gatt.connect();
-    console.log("GATT conectado!");
+    try {
+        const server = await bleDevice.gatt.connect();
+        console.log("GATT conectado!");
 
-    const service = await server.getPrimaryService(SERVICE_UUID);
-    console.log("Serviço encontrado!");
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        console.log("Serviço encontrado!");
 
-    bleCharacteristic =
-        await service.getCharacteristic(PESO_UUID);
+        bleCharacteristic =
+            await service.getCharacteristic(PESO_UUID);
 
-    console.log("Characteristic de peso encontrada!");
+        console.log("Characteristic de peso encontrada!");
 
-    await bleCharacteristic.startNotifications();
+        await bleCharacteristic.startNotifications();
 
-    bleCharacteristic.removeEventListener(
-        "characteristicvaluechanged",
-        receberPesos
-    );
-    bleCharacteristic.addEventListener(
-        "characteristicvaluechanged",
-        receberPesos
-    );
+        bleCharacteristic.removeEventListener(
+            "characteristicvaluechanged",
+            receberPesos
+        );
+        bleCharacteristic.addEventListener(
+            "characteristicvaluechanged",
+            receberPesos
+        );
 
-    cmdCharacteristic =
-        await service.getCharacteristic(CMD_UUID);
+        cmdCharacteristic =
+            await service.getCharacteristic(CMD_UUID);
 
-    console.log("Characteristic de comando encontrada!");
+        console.log("Characteristic de comando encontrada!");
+    } catch (erro) {
+        // não era a plataforma ou a conexão falhou: solta o dispositivo para não ficar preso a ele
+        dispositivo.removeEventListener('gattserverdisconnected', onDisconnectedBLE);
+        if (dispositivo.gatt.connected) dispositivo.gatt.disconnect();
+        bleDevice = bleCharacteristic = cmdCharacteristic = null;
+        throw erro;
+    }
 
     tentativasReconexao = 0;
+    pararReconexaoAutomatica();
 
     console.log("🟢 Conectado!");
 }
@@ -151,11 +160,13 @@ function onDisconnectedBLE(){
     if(tentativasReconexao<MAX_TENTATIVAS_RECONEXAO){
         tentativasReconexao++;
         setTimeout(reconectarBLE,TEMPO_RECONEXAO);
+    }else{
+        aguardarPlataforma();
     }
 }
 
 async function reconectarBLE(){
-    if(!bleDevice)return;
+    if(!bleDevice||cmdCharacteristic)return;
     try{
         const server=await bleDevice.gatt.connect();
         const service=await server.getPrimaryService(SERVICE_UUID);
@@ -174,8 +185,15 @@ async function reconectarBLE(){
         if(tentativasReconexao<MAX_TENTATIVAS_RECONEXAO){
             tentativasReconexao++;
             setTimeout(reconectarBLE,TEMPO_RECONEXAO);
+        }else{
+            aguardarPlataforma();
         }
     }
+}
+
+// esgotadas as tentativas: espera a plataforma voltar a aparecer
+function aguardarPlataforma(){
+    reconectarAutomaticamente(conectarDispositivo);
 }
 
 function receberPesos(event){
