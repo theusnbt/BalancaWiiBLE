@@ -29,6 +29,9 @@ let tempoInicio=null;
 
 const NOMES_MOTORES=["Frente Esquerda","Trás Esquerda","Frente Direita","Trás Direita"];
 const motoresEstado=[0,0,0,0];
+// o ESP32 desliga os motores após 2 s sem comando (MOTOR_TIMEOUT), então o estado é reenviado
+const INTERVALO_REENVIO_MOTORES=1000;
+let enviandoMotores=false,motoresPendente=false;
 
 document.addEventListener("DOMContentLoaded",()=>{
     canvasTime=document.getElementById("time");
@@ -43,6 +46,9 @@ document.addEventListener("DOMContentLoaded",()=>{
     statsSpaceEl=document.getElementById("statsSpace");
 
     criarBotoesMotores();
+    setInterval(()=>{
+        if(cmdCharacteristic&&motoresEstado.some(Boolean))enviarComandoMotores(motoresEstado);
+    },INTERVALO_REENVIO_MOTORES);
 
     desenharEixosTime();
     desenharSpace();
@@ -157,6 +163,9 @@ function onDisconnectedBLE(){
     console.warn("🔴 BLE desconectado.");
     bleCharacteristic=null;
     cmdCharacteristic=null;
+    // sem comandos o ESP32 desliga os motores; os botões voltam a mostrar isso
+    motoresEstado.fill(0);
+    NOMES_MOTORES.forEach((_,indice)=>atualizarBotaoMotor(indice));
     if(tentativasReconexao<MAX_TENTATIVAS_RECONEXAO){
         tentativasReconexao++;
         setTimeout(reconectarBLE,TEMPO_RECONEXAO);
@@ -196,32 +205,18 @@ function aguardarPlataforma(){
     reconectarAutomaticamente(conectarDispositivo);
 }
 
+// pacotes cortados ou inválidos são descartados em lerPacotesPeso (protocolo.js)
 function receberPesos(event){
     try{
-        const dados=new TextDecoder().decode(event.target.value);
-        bufferBLE+=dados;
-        if(bufferBLE.includes("\n")){
-            const mensagens=bufferBLE.split("\n");
-            bufferBLE=mensagens.pop();
-            mensagens.forEach(m=>processarPacoteBLE(m.trim()));
-        }else{
-            const match=bufferBLE.match(/P,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
-            if(match){
-                processarPacoteBLE(match[0]);
-                bufferBLE=bufferBLE.substring(bufferBLE.indexOf(match[0])+match[0].length);
-            }
-        }
+        const lido=lerPacotesPeso(bufferBLE,new TextDecoder().decode(event.target.value));
+        bufferBLE=lido.resto;
+        lido.pesos.forEach(processarPesos);
     }catch(erro){
         console.error("Erro ao receber BLE:",erro);
     }
 }
 
-function processarPacoteBLE(dados){
-    if(!dados.startsWith("P,"))return;
-    const partes=dados.split(",");
-    if(partes.length!==5)return;
-    const valores=partes.slice(1).map(Number);
-    if(valores.length!==4||valores.some(v=>!Number.isFinite(v)))return;
+function processarPesos(valores){
     [FE,TE,FD,TD]=valores;
     if(!calcularCOP())return;
 
@@ -413,6 +408,12 @@ async function enviarComandoMotores(estados) {
         console.warn("Característica de comando não disponível. Conecte-se primeiro.");
         return;
     }
+    // duas escritas BLE ao mesmo tempo falham; a mais nova espera a atual terminar
+    if (enviandoMotores) {
+        motoresPendente = true;
+        return;
+    }
+    enviandoMotores = true;
     try {
         const comando = "V," + estados.join(",");
         const encoder = new TextEncoder();
@@ -420,13 +421,22 @@ async function enviarComandoMotores(estados) {
         console.log("Comando enviado:", comando);
     } catch (erro) {
         console.error("Erro ao enviar comando:", erro);
+    } finally {
+        enviandoMotores = false;
+    }
+    if (motoresPendente) {
+        motoresPendente = false;
+        enviarComandoMotores(motoresEstado);
     }
 }
 
 function toggleMotor(indice){
     motoresEstado[indice]=motoresEstado[indice]?0:1;
     enviarComandoMotores(motoresEstado);
+    atualizarBotaoMotor(indice);
+}
 
+function atualizarBotaoMotor(indice){
     const btn=document.getElementById("btnMotor"+indice);
     if(btn){
         btn.textContent=(motoresEstado[indice]?"Desligar ":"Ligar ")+NOMES_MOTORES[indice];

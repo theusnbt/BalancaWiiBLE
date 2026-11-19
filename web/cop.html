@@ -5,15 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="./src/css/cop.css">
     <script src="./src/js/reconexao.js" defer></script>
+    <script src="./src/js/protocolo.js" defer></script>
     <script src="./src/js/cop.js" defer></script>
-    <title>Document</title>
+    <title>Cálculo COP</title>
 </head>
 <body>
     <h1>Cálculo COP</h1>
     
     <div id="btn">
         <button id="btnConectar" onclick="conectionBLE()">Conectar plataforma (BLE)</button>
-        <button id="btnMotores" onclick="toggleMotores()">Ligar Motores</button>
+        <!-- substituído pelos botões de cada motor em criarBotoesMotores() -->
+        <span id="btnMotores"></span>
         <a id="linkJogo" href="./jogo.html">Abrir Jogo do Equilíbrio</a>
         <a id="linkBolinha" href="./bolinha.html">Abrir Bolinha no Buraco</a>
     </div>

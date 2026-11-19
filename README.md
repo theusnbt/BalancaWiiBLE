@@ -41,11 +41,13 @@ O ESP32 lê o peso em cada canto da plataforma e envia os valores via **Bluetoot
 | Canto              | HX711 `DT` | HX711 `SCK` | Motor |
 |--------------------|:----------:|:-----------:|:-----:|
 | Frente Esquerda    | 35         | 16          | 4     |
-| Trás Esquerda      | 32         | 33          | 12    |
+| Trás Esquerda      | 32         | 33          | 25    |
 | Frente Direita     | 27         | 17          | 14    |
 | Trás Direita       | 18         | 19          | 13    |
 
-> Os motores devem ser ligados através de um transistor/driver. O ESP32 não fornece corrente suficiente para acionar o motor diretamente.
+> Os motores devem ser ligados através de um transistor/driver, com um diodo de proteção (ex.: 1N4007) em paralelo com cada motor. O ESP32 não fornece corrente suficiente para acionar o motor diretamente, e ligá-lo direto no pino pode queimar a placa.
+
+> O motor Trás Esquerda usava o **GPIO 12**, que define a tensão da memória do ESP32 no boot: com ele em nível alto a placa não inicia. Ele passou para o **GPIO 25**.
 
 ---
 
@@ -56,6 +58,7 @@ BalancaWiiBLE/
 ├── BLE/
 │   ├── jogoBLE/jogoBLE.ino     # firmware principal da plataforma (servidor BLE)
 │   └── ponteBLE/ponteBLE.ino   # firmware opcional: ESP32 "ponte" BLE ↔ Serial
+├── tests/                      # testes automatizados das páginas (node --test)
 └── web/
     ├── cop.html                # tela técnica: gráficos do COP e controle manual dos motores
     ├── jogo.html               # Jogo do Equilíbrio
@@ -63,7 +66,7 @@ BalancaWiiBLE/
     └── src/
         ├── css/                # estilos de cada página
         └── js/                 # lógica de cada página (BLE, cálculo, desenho)
-                                # + reconexao.js, compartilhado pelas três páginas
+                                # + reconexao.js e protocolo.js, compartilhados pelas três páginas
 ```
 
 ---
@@ -79,6 +82,8 @@ BalancaWiiBLE/
 5. **Deixe a plataforma vazia ao ligar o ESP32**: a tara das balanças é feita nos primeiros segundos.
 
 Ao iniciar, o dispositivo aparece no Bluetooth com o nome **`ESP32-BALANCA`**.
+
+> As páginas só aceitam pacotes terminados em `\n`. Se as páginas conectam mas nada se mexe, o ESP32 provavelmente está com um firmware antigo: grave o `jogoBLE.ino` atual.
 
 ### 2. Páginas web
 
@@ -147,11 +152,13 @@ Sem essa opção, nada muda: o botão "Conectar plataforma" continua funcionando
 
 | Mensagem         | Significado                                                                 |
 |------------------|-----------------------------------------------------------------------------|
-| `P,fe,te,fd,td`  | Peso em kg de cada canto (Frente Esq., Trás Esq., Frente Dir., Trás Dir.)    |
+| `P,fe,te,fd,td\n`| Peso em kg de cada canto (Frente Esq., Trás Esq., Frente Dir., Trás Dir.). Um canto que não respondeu na tara vai como `nan` |
 | `V,a,b,c,d`      | Liga (`1`) ou desliga (`0`) cada motor, na mesma ordem dos cantos            |
 | `I,a,b,c,d`      | Intensidade de cada motor, de `0` (desligado) a `255` (máxima)               |
 
-**Segurança:** se o ESP32 ficar **2 segundos sem receber comandos**, todos os motores são desligados. As páginas também desligam os motores ao serem fechadas.
+**Segurança:** se o ESP32 ficar **2 segundos sem receber comandos**, todos os motores são desligados. Por isso a página COP reenvia o estado dos motores ligados a cada segundo. As páginas também desligam os motores ao serem fechadas.
+
+**Pacotes cortados:** com o tamanho padrão do Bluetooth (MTU de 23), uma notificação leva no máximo 20 bytes e o pacote de peso passa disso. O firmware pede um MTU maior (`BLEDevice::setMTU(185)`), e as páginas (`protocolo.js`) só aceitam pacotes completos, terminados em `\n`, descartando qualquer pacote cortado ou com `nan`.
 
 ### Cálculo do COP
 
@@ -190,11 +197,24 @@ O `ponteBLE.ino` transforma um segundo ESP32 em cliente BLE: ele procura a plata
 
 ---
 
+## 🧪 Testes
+
+Os testes carregam os scripts reais das páginas num navegador simulado (sem plataforma, sem Chrome) e verificam a leitura dos pacotes, os motores da página COP, a reconexão automática nas três páginas e os motores dos dois jogos. Precisam só do **Node.js 20 ou mais novo**, sem instalar nada:
+
+```bash
+node --test tests/
+```
+
+O firmware não tem testes automáticos; confira se ele compila pela Arduino IDE (**Verificar**) antes de gravar.
+
+---
+
 ## 🩺 Solução de Problemas
 
 * **O dispositivo não aparece na lista do Bluetooth:** confira se o ESP32 está ligado e se nenhuma outra página/aparelho já está conectado a ele.
 * **"Este navegador não suporta Bluetooth":** use Chrome ou Edge e abra a página por `localhost`/`https`.
 * **Os pesos não zeram ou o COP fica deslocado:** reinicie o ESP32 com a plataforma **vazia** para refazer a tara.
-* **Mensagem "ERRO: scaleX nao respondeu para tara!" no Monitor Serial:** verifique as ligações `DT`/`SCK` do HX711 correspondente.
+* **Mensagem "ERRO: scaleX nao respondeu para tara!" no Monitor Serial:** verifique as ligações `DT`/`SCK` do HX711 correspondente. Enquanto isso, aquele canto é enviado como `nan` e as páginas ficam paradas em vez de mostrar pesos errados; reinicie o ESP32 depois de corrigir.
 * **Motor não vibra com inclinação leve:** aumente `PWM_MIN`.
-* **ESP32 não inicia com os motores ligados:** o GPIO 12 influencia o modo de boot do ESP32. Garanta que ele não esteja em nível alto durante o boot (por exemplo, com um resistor de pull-down no transistor).
+* **ESP32 não inicia com os motores ligados:** confira se o motor Trás Esquerda está no **GPIO 25** e não mais no 12. O GPIO 12 influencia o boot do ESP32 e, em nível alto, impede a placa de iniciar.
+* **Motor ligado pela página COP desliga sozinho:** a página reenvia o comando a cada segundo; se mesmo assim desligar, a conexão Bluetooth está caindo (veja o console do navegador).

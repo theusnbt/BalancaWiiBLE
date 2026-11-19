@@ -146,30 +146,18 @@ function atualizarBotao(){
     document.getElementById("btnConectar").hidden=!!cmdCharacteristic;
 }
 
+// pacotes cortados ou inválidos são descartados em lerPacotesPeso (protocolo.js)
 function receberPesos(event){
     try{
-        bufferBLE+=new TextDecoder().decode(event.target.value);
-        if(bufferBLE.includes("\n")){
-            const mensagens=bufferBLE.split("\n");
-            bufferBLE=mensagens.pop();
-            mensagens.forEach(m=>processarPacote(m.trim()));
-        }else{
-            const match=bufferBLE.match(/P,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
-            if(match){
-                processarPacote(match[0]);
-                bufferBLE=bufferBLE.substring(bufferBLE.indexOf(match[0])+match[0].length);
-            }
-        }
+        const lido=lerPacotesPeso(bufferBLE,new TextDecoder().decode(event.target.value));
+        bufferBLE=lido.resto;
+        lido.pesos.forEach(processarPesos);
     }catch(erro){
         console.error("Erro ao receber BLE:",erro);
     }
 }
 
-function processarPacote(dados){
-    if(!dados.startsWith("P,"))return;
-    const valores=dados.split(",").slice(1).map(Number);
-    if(valores.length!==4||valores.some(v=>!Number.isFinite(v)))return;
-    const [FE,TE,FD,TD]=valores;
+function processarPesos([FE,TE,FD,TD]){
     const total=FE+TE+FD+TD;
 
     // sem ninguém na plataforma: o tabuleiro volta a ficar reto

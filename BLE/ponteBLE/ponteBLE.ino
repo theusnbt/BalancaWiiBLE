@@ -27,6 +27,7 @@ void notifyCallback(
     for (size_t i = 0; i < length; i++) {
         dados += (char)pData[i];
     }
+    dados.trim(); // o pacote já termina em "\n"; evita linha em branco na Serial
     Serial.println(dados);
 }
 
@@ -35,7 +36,11 @@ bool conectarAoServidor(BLEAdvertisedDevice device) {
     Serial.print("Servidor encontrado! Tentando conectar em: ");
     Serial.println(device.getAddress().toString().c_str());
 
-    pClient = BLEDevice::createClient();
+    // Um único cliente reaproveitado em todas as tentativas: criar um novo a cada
+    // tentativa sem liberar o anterior esgota a memória depois de muitas quedas
+    if (pClient == nullptr) {
+        pClient = BLEDevice::createClient();
+    }
 
     if (!pClient->connect(&device)) {
         Serial.println("Falha ao conectar.");

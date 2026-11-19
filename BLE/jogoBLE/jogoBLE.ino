@@ -20,8 +20,14 @@ HX711 scale1, scale2, scale3, scale4;
 
 long lastRaw1 = 0, lastRaw2 = 0, lastRaw3 = 0, lastRaw4 = 0;
 
+// Balança que não respondeu na tara fica sem zero e mostraria pesos enormes:
+// ela passa a enviar "nan" e as páginas descartam o pacote em vez de mostrar dados errados
+bool tare1 = false, tare2 = false, tare3 = false, tare4 = false;
+
 // --- Configuração dos Motores (PWM: liga/desliga ou intensidade 0-255) ---
-const int MOTOR_PINS[] = {4, 12, 14, 13};
+// Trás-Esquerda fica no 25: o GPIO 12 define a tensão da flash no boot e,
+// se o circuito do motor o deixar em nível alto, o ESP32 não inicia
+const int MOTOR_PINS[] = {4, 25, 14, 13};
 const int NUM_MOTORS = 4;
 
 #define SERVICE_UUID        "12345678-1234-1234-1234-1234567890ab"
@@ -81,13 +87,13 @@ class CmdCallbacks : public BLECharacteristicCallbacks {
                 &estados[2],
                 &estados[3]
             );
-            Serial.printf("Motores: %d %d %d %d\n",
-              estados[0],
-              estados[1],
-              estados[2],
-              estados[3]);
-
             if (parsed == 4) {
+
+                Serial.printf("Motores: %d %d %d %d\n",
+                  estados[0],
+                  estados[1],
+                  estados[2],
+                  estados[3]);
 
                 for (int i = 0; i < NUM_MOTORS; i++) {
 
@@ -140,6 +146,10 @@ void setup() {
     // Configura o Access por BLE
     BLEDevice::init("ESP32-BALANCA");
 
+    // Pacote de peso passa de 20 bytes (limite do MTU padrão de 23); sem isso ele
+    // pode chegar cortado e com o último peso errado
+    BLEDevice::setMTU(185);
+
     BLEServer *server = BLEDevice::createServer();
     server->setCallbacks(new ServerCallbacks());
 
@@ -187,10 +197,10 @@ void setup() {
     // Fica depois do BLE para a página já poder conectar enquanto a tara acontece.
     // 10 amostras por balança (~1s cada a 10 leituras/s).
     Serial.println("A efetuar Tara inicial...");
-    bool tare1 = scale1.wait_ready_timeout(1000);
-    bool tare2 = scale2.wait_ready_timeout(1000);
-    bool tare3 = scale3.wait_ready_timeout(1000);
-    bool tare4 = scale4.wait_ready_timeout(1000);
+    tare1 = scale1.wait_ready_timeout(1000);
+    tare2 = scale2.wait_ready_timeout(1000);
+    tare3 = scale3.wait_ready_timeout(1000);
+    tare4 = scale4.wait_ready_timeout(1000);
 
     if (tare1) scale1.tare(10); else Serial.println("ERRO: scale1 nao respondeu para tara!");
     if (tare2) scale2.tare(10); else Serial.println("ERRO: scale2 nao respondeu para tara!");
@@ -214,18 +224,19 @@ void loop() {
 
         if (deviceConnected) {
 
-            float p1 = (-6.0 * 0.00001) * lastRaw1;
-            float p2 = (-6.0 * 0.00001) * lastRaw2;
-            float p3 = (-7.0 * 0.00001) * lastRaw3;
-            float p4 = (-7.0 * 0.00001) * lastRaw4;
+            float p1 = tare1 ? (-6.0 * 0.00001) * lastRaw1 : NAN;
+            float p2 = tare2 ? (-6.0 * 0.00001) * lastRaw2 : NAN;
+            float p3 = tare3 ? (-7.0 * 0.00001) * lastRaw3 : NAN;
+            float p4 = tare4 ? (-7.0 * 0.00001) * lastRaw4 : NAN;
 
             // "P," identifica o pacote como Peso; o JS descarta esse
-            // primeiro campo antes de interpretar os 4 valores
+            // primeiro campo antes de interpretar os 4 valores.
+            // O "\n" marca o fim do pacote: a página descarta pacotes cortados
             String dadosBalanca = "P," +
                 String(p1, 2) + "," +
                 String(p2, 2) + "," +
                 String(p3, 2) + "," +
-                String(p4, 2);
+                String(p4, 2) + "\n";
 
             pesoCharacteristic->setValue(dadosBalanca.c_str());
             pesoCharacteristic->notify();
